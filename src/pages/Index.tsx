@@ -8,7 +8,7 @@ import { fetchWeatherGrid, type GridResponse, type Bounds } from "@/lib/api/open
 import type { DroneType } from "@/core/droneZones";
 import { RefreshCw, Crosshair } from "lucide-react";
 
-const STEP = 0.25;
+const DEFAULT_STEP = 0.25;
 
 const Index = () => {
   const [grid, setGrid] = useState<GridResponse | null>(null);
@@ -17,6 +17,7 @@ const Index = () => {
   const [droneType, setDroneType] = useState<DroneType>("fpv");
   const [useHighAlt, setUseHighAlt] = useState(false);
   const [hourIndex, setHourIndex] = useState(0);
+  const [actualStep, setActualStep] = useState(DEFAULT_STEP);
   const boundsRef = useRef<Bounds | null>(null);
 
   const load = useCallback(async (bounds?: Bounds) => {
@@ -26,8 +27,9 @@ const Index = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchWeatherGrid(b, STEP);
+      const data = await fetchWeatherGrid(b, DEFAULT_STEP);
       setGrid(data);
+      setActualStep(data.step);
     } catch (e: any) {
       setError(String(e));
     } finally {
@@ -81,7 +83,7 @@ const Index = () => {
             droneType={droneType}
             hourIndex={hourIndex}
             useHighAlt={useHighAlt}
-            step={STEP}
+            step={actualStep}
             onBoundsChange={handleBoundsChange}
           />
         </div>
