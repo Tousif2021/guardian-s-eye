@@ -139,7 +139,7 @@ function GridOverlay({ cells, droneType, hourIndex, step }: Omit<DroneMapProps, 
 }
 
 export default function DroneMap({ onBoundsChange, ...props }: DroneMapProps) {
-  const center: [number, number] = [49.0, 36.0];
+  const center: [number, number] = [48.46, 35.04];
 
   return (
     <MapContainer
