@@ -156,28 +156,7 @@ const Index = () => {
 
   const handleDeployAsset = useCallback((lat: number, lon: number) => {
     if (!selectedGroup || !selectedAssetType) return;
-    if (simulationStarted) return; // Can't deploy after simulation starts
-
-    // Check if asset is available in the selected group
-    const group = registry.getGroup(selectedGroup);
-    if (!group) return;
-
-    const groupAsset = group.assets.find((a) => a.type === selectedAssetType);
-    if (!groupAsset) return;
-
-    // Check if we haven't exceeded the count
-    const deployedInGroup = deployedAssets.filter(
-      (a) => a.group_id === selectedGroup && a.type === selectedAssetType
-    ).length;
-    if (deployedInGroup >= groupAsset.count) return;
-
-    // Check max_deployable constraint
-    if (groupAsset.max_deployable !== undefined) {
-      const deployedTotal = deployedAssets.filter(
-        (a) => a.group_id === selectedGroup && a.type === selectedAssetType
-      ).length;
-      if (deployedTotal >= groupAsset.max_deployable) return;
-    }
+    if (simulationStarted) return;
 
     const newAsset: DeployedAsset = {
       type: selectedAssetType,
@@ -188,7 +167,7 @@ const Index = () => {
     };
 
     setDeployedAssets((prev) => [...prev, newAsset]);
-  }, [selectedGroup, selectedAssetType, deployedAssets, simulationStarted]);
+  }, [selectedGroup, selectedAssetType, simulationStarted]);
 
   const handleRemoveAsset = useCallback((instanceId: string) => {
     if (simulationStarted) return;
@@ -256,6 +235,8 @@ const Index = () => {
               onRemoveAsset={handleRemoveAsset}
               selectedAssetType={selectedAssetType}
               onSelectAssetType={setSelectedAssetType}
+              selectedGroup={selectedGroup}
+              onSelectGroup={setSelectedGroup}
               totalSpent={totalSpent}
             />
           ) : (
