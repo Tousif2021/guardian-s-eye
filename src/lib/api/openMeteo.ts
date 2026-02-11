@@ -18,6 +18,7 @@ export interface GridCell {
 
 export interface GridResponse {
   cells: GridCell[];
+  step: number;
 }
 
 export interface Bounds {
@@ -46,6 +47,7 @@ export async function fetchWeatherGrid(
   const lonSpan = bounds.lonMax - bounds.lonMin;
   const totalPoints = Math.ceil(latSpan / step) * Math.ceil(lonSpan / step);
   const effectiveStep = totalPoints > 400 ? Math.max(step, Math.sqrt((latSpan * lonSpan) / 400)) : step;
+  const roundedStep = Math.round(effectiveStep * 100) / 100;
 
   const { data, error } = await supabase.functions.invoke("open-meteo-grid", {
     body: {
@@ -53,12 +55,13 @@ export async function fetchWeatherGrid(
       latMax: bounds.latMax,
       lonMin: bounds.lonMin,
       lonMax: bounds.lonMax,
-      step: Math.round(effectiveStep * 100) / 100,
+      step: roundedStep,
       forecastDays: 3,
     },
   });
 
   if (error) throw error;
-  cache = { data: data as GridResponse, key, ts: Date.now() };
-  return data as GridResponse;
+  const result: GridResponse = { cells: (data as any).cells, step: roundedStep };
+  cache = { data: result, key, ts: Date.now() };
+  return result;
 }
