@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Slider } from "@/components/ui/slider";
 
 interface Props {
   hourIndex: number;
@@ -79,22 +80,23 @@ export default function ForecastTimeline({ hourIndex, maxHours, timestamps, onCh
         ))}
       </div>
 
-      {/* Hour selector */}
-      <div className="flex flex-wrap gap-1">
-        {hourMarks.map((hm) => (
-          <button
-            key={hm.idx}
-            onClick={() => onChange(hm.idx)}
-            className={`font-mono-tactical text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              hourIndex === hm.idx
-                ? "bg-cyan text-background font-bold"
-                : "bg-secondary/50 text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {hm.hour}
-          </button>
-        ))}
-      </div>
+      {/* Hour slider within selected day */}
+      {activeDay && activeDay.hours.length > 1 && (
+        <div>
+          <Slider
+            value={[hourIndex]}
+            min={activeDay.hours[0].idx}
+            max={activeDay.hours[activeDay.hours.length - 1].idx}
+            step={1}
+            onValueChange={([v]) => onChange(v)}
+            className="mb-1"
+          />
+          <div className="flex justify-between font-mono-tactical text-[9px] text-muted-foreground">
+            <span>{activeDay.hours[0].hour}</span>
+            <span>{activeDay.hours[activeDay.hours.length - 1].hour}</span>
+          </div>
+        </div>
+      )}
 
       {/* Current timestamp label */}
       <div className="font-mono-tactical text-[10px] text-foreground text-center mt-2 opacity-70">
