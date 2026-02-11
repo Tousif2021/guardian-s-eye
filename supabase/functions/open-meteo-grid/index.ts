@@ -21,14 +21,18 @@ serve(async (req) => {
     const s = step ?? 0.25;
     const days = forecastDays ?? 3;
 
-    // Build lat/lon arrays
-    const lats: number[] = [];
-    const lons: number[] = [];
-    for (let la = lat0; la <= lat1; la += s) lats.push(Math.round(la * 100) / 100);
-    for (let lo = lon0; lo <= lon1; lo += s) lons.push(Math.round(lo * 100) / 100);
+    // Build paired lat/lon arrays (every combination)
+    const latArr: number[] = [];
+    const lonArr: number[] = [];
+    for (let la = lat0; la <= lat1; la += s) {
+      for (let lo = lon0; lo <= lon1; lo += s) {
+        latArr.push(Math.round(la * 100) / 100);
+        lonArr.push(Math.round(lo * 100) / 100);
+      }
+    }
 
-    const latStr = lats.join(",");
-    const lonStr = lons.join(",");
+    const latStr = latArr.join(",");
+    const lonStr = lonArr.join(",");
 
     const url =
       `https://api.open-meteo.com/v1/forecast` +
@@ -64,7 +68,7 @@ serve(async (req) => {
       },
     }));
 
-    return new Response(JSON.stringify({ cells, lats, lons }), {
+    return new Response(JSON.stringify({ cells }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
