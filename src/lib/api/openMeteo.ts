@@ -56,7 +56,7 @@ export async function fetchWeatherGrid(
       lonMin: bounds.lonMin,
       lonMax: bounds.lonMax,
       step: roundedStep,
-      forecastDays: 3,
+      forecastDays: 7,
     },
   });
 
