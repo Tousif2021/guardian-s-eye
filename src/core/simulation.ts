@@ -4,7 +4,7 @@ import type {
 } from "./types";
 import { registry } from "./registry";
 import { moveToward, haversineDistance, hasLineOfSight } from "./physics";
-import { detectThreat } from "./detection";
+import { detectThreat, type EnvironmentModifiers } from "./detection";
 import { calculateCER } from "./costModel";
 
 let idCounter = 0;
@@ -132,7 +132,8 @@ function spawnThreats(
 /** Advance simulation by 1 second */
 export function stepSimulation(
   state: SimulationState,
-  scenario: Scenario
+  scenario: Scenario,
+  envMods?: EnvironmentModifiers
 ): SimulationState {
   if (state.status !== "running") return state;
 
@@ -195,7 +196,7 @@ export function stepSimulation(
     if (asset.status !== "active") continue;
     for (const threat of next.threats) {
       if (threat.status !== "active" || threat.spawnTime > next.time) continue;
-      const detection = detectThreat(asset.definition, threat, asset.lat, asset.lon);
+      const detection = detectThreat(asset.definition, threat, asset.lat, asset.lon, envMods);
       if (detection.detected && threat.status === "active") {
         threat.status = "detected";
         next.events.push({
