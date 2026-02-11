@@ -57,6 +57,17 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        coda: {
+          navy: "hsl(var(--coda-navy))",
+          cyan: "hsl(var(--coda-cyan))",
+          "cyan-dim": "hsl(var(--coda-cyan-dim))",
+          danger: "hsl(var(--coda-danger))",
+          warning: "hsl(var(--coda-warning))",
+          success: "hsl(var(--coda-success))",
+          purple: "hsl(var(--coda-purple))",
+          glass: "hsl(var(--coda-glass))",
+          "glass-border": "hsl(var(--coda-glass-border))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
