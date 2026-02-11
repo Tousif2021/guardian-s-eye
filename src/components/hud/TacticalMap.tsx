@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { SimulationState, AssetInstance, ThreatInstance, Scenario, DeployedAsset } from "@/core/types";
@@ -46,6 +46,10 @@ export function TacticalMap({
   const layersRef = useRef<L.LayerGroup>(L.layerGroup());
   const [cursorPos, setCursorPos] = useState<L.LatLng | null>(null);
 
+  // Keep onMapClick in a ref so the map click handler always uses the latest version
+  const onMapClickRef = useRef(onMapClick);
+  onMapClickRef.current = onMapClick;
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, {
@@ -63,7 +67,7 @@ export function TacticalMap({
     mapRef.current = map;
 
     map.on("click", (e: L.LeafletMouseEvent) => {
-      onMapClick?.(e.latlng.lat, e.latlng.lng);
+      onMapClickRef.current?.(e.latlng.lat, e.latlng.lng);
     });
 
     map.on("mousemove", (e: L.LeafletMouseEvent) => {
@@ -95,39 +99,68 @@ export function TacticalMap({
         .addTo(layers);
     });
 
+    // Draw deployed assets (pre-simulation placement markers)
+    if (!state || state.time === 0) {
+      deployedAssets.forEach((da) => {
+        const def = registry.getAsset(da.type);
+        if (!def) return;
+        const color = def.kill_probability > 0 ? "#22c55e" : "#3b82f6";
+
+        // Range ring
+        L.circle([da.lat, da.lon], {
+          radius: def.range_km * 1000,
+          color,
+          weight: 1,
+          opacity: 0.3,
+          fillOpacity: 0.05,
+          dashArray: "6 4",
+        }).addTo(layers);
+
+        // Asset marker
+        L.circleMarker([da.lat, da.lon], {
+          radius: 8,
+          color,
+          fillColor: color,
+          fillOpacity: 0.8,
+          weight: 2,
+        })
+          .bindTooltip(`<div class="font-mono-tactical text-xs">
+            <strong>${da.type.replace(/_/g, " ").toUpperCase()}</strong><br/>
+            Range: ${def.range_km}km<br/>
+            Group: ${da.group_id}
+          </div>`, { permanent: false })
+          .addTo(layers);
+      });
+    }
+
     if (!state) return;
 
-    // Draw assets with range rings
-    state.assets.forEach((asset) => {
-      if (asset.status === "destroyed") return;
-      const color = asset.definition.kill_probability > 0 ? "#22c55e" : "#3b82f6";
+    // Draw assets with range rings (simulation running)
+    if (state.time > 0) {
+      state.assets.forEach((asset) => {
+        if (asset.status === "destroyed") return;
+        const color = asset.definition.kill_probability > 0 ? "#22c55e" : "#3b82f6";
 
-      // Range ring
-      L.circle([asset.lat, asset.lon], {
-        radius: asset.definition.range_km * 1000,
-        color: color,
-        weight: 1,
-        opacity: 0.3,
-        fillOpacity: 0.05,
-        dashArray: "6 4",
-      }).addTo(layers);
+        L.circle([asset.lat, asset.lon], {
+          radius: asset.definition.range_km * 1000,
+          color: color,
+          weight: 1,
+          opacity: 0.3,
+          fillOpacity: 0.05,
+          dashArray: "6 4",
+        }).addTo(layers);
 
-      // Asset marker
-      L.circleMarker([asset.lat, asset.lon], {
-        radius: 8,
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.8,
-        weight: 2,
-      })
-        .bindTooltip(formatAssetTooltip(asset), { permanent: false, className: "tactical-tooltip" })
-        .addTo(layers);
-    });
-
-    // Draw HVAs
-    state.hvaStatus.forEach((hva, i) => {
-      // We don't have lat/lon on hvaStatus, so skip visual for now
-    });
+        L.circleMarker([asset.lat, asset.lon], {
+          radius: 8,
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.8,
+          weight: 2,
+        })
+          .bindTooltip(formatAssetTooltip(asset), { permanent: false, className: "tactical-tooltip" })
+          .addTo(layers);
+      });
+    }
 
     // Draw threats with trails
     state.threats.forEach((threat) => {
@@ -135,7 +168,6 @@ export function TacticalMap({
       const color = THREAT_COLORS[threat.definition.classification] ?? "#ffffff";
 
       if (threat.status === "destroyed") {
-        // X marker for destroyed
         L.circleMarker([threat.lat, threat.lon], {
           radius: 4,
           color: "#666",
@@ -148,7 +180,6 @@ export function TacticalMap({
 
       if (threat.status === "escaped") return;
 
-      // Trail
       if (threat.trail.length > 1) {
         const trailCoords = threat.trail.map((t) => [t.lat, t.lon] as [number, number]);
         trailCoords.push([threat.lat, threat.lon]);
@@ -160,7 +191,6 @@ export function TacticalMap({
         }).addTo(layers);
       }
 
-      // Threat marker (triangle via DivIcon)
       const icon = L.divIcon({
         className: "",
         html: `<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid ${color};filter:drop-shadow(0 0 4px ${color});transform:rotate(${threat.heading}deg)"></div>`,
@@ -185,43 +215,44 @@ export function TacticalMap({
           { color, weight: 2, opacity: 0.7, dashArray: "4 4" }
         ).addTo(layers);
       });
-  }, [state, scenario, placementAssetType, cursorPos]);
+  }, [state, scenario, deployedAssets]);
 
   // Draw placement preview
   useEffect(() => {
-    const layers = layersRef.current;
-    // Remove existing preview layer
-    layers.eachLayer((l) => {
-      const layer = l as L.Circle & { options?: { className?: string } };
-      if (layer.options?.className === "placement-preview") {
-        layers.removeLayer(l);
-      }
-    });
-
+    // We only add preview to existing layers — don't clear
     if (!placementAssetType || !placementGroupId || !cursorPos) return;
 
-    // Get asset definition for preview
     const def = registry.getAsset(placementAssetType);
     if (!def) return;
 
-    // Preview range ring
-    L.circle([cursorPos.lat, cursorPos.lng], {
+    // Remove old preview layers by iterating
+    const layers = layersRef.current;
+    const toRemove: L.Layer[] = [];
+    layers.eachLayer((l) => {
+      if ((l as any)._isPreview) toRemove.push(l);
+    });
+    toRemove.forEach((l) => layers.removeLayer(l));
+
+    const ring = L.circle([cursorPos.lat, cursorPos.lng], {
       radius: def.range_km * 1000,
       color: "#22c55e",
       weight: 1,
       opacity: 0.5,
       fillOpacity: 0.1,
       dashArray: "6 4",
-    } as L.CircleOptions).addTo(layers);
+    } as L.CircleOptions);
+    (ring as any)._isPreview = true;
+    ring.addTo(layers);
 
-    // Preview marker
-    L.circleMarker([cursorPos.lat, cursorPos.lng], {
+    const marker = L.circleMarker([cursorPos.lat, cursorPos.lng], {
       radius: 8,
       color: "#22c55e",
       fillColor: "#22c55e",
       fillOpacity: 0.5,
       weight: 2,
-    } as L.CircleMarkerOptions).addTo(layers);
+    } as L.CircleMarkerOptions);
+    (marker as any)._isPreview = true;
+    marker.addTo(layers);
   }, [placementAssetType, placementGroupId, cursorPos]);
 
   return (
