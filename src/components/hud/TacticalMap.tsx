@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import type { SimulationState, AssetInstance, ThreatInstance } from "@/core/types";
+import type { SimulationState, AssetInstance, ThreatInstance, Scenario, DeployedAsset } from "@/core/types";
+import { registry } from "@/core/registry";
 
 const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 
@@ -21,13 +22,29 @@ interface TacticalMapProps {
   state: SimulationState | null;
   center: [number, number];
   zoom: number;
+  scenario?: Scenario;
+  deployedAssets?: DeployedAsset[];
+  placementAssetType?: string | null;
+  placementGroupId?: string | null;
   onMapClick?: (lat: number, lon: number) => void;
+  onRemoveAsset?: (instanceId: string) => void;
 }
 
-export function TacticalMap({ state, center, zoom, onMapClick }: TacticalMapProps) {
+export function TacticalMap({
+  state,
+  center,
+  zoom,
+  scenario,
+  deployedAssets = [],
+  placementAssetType,
+  placementGroupId,
+  onMapClick,
+  onRemoveAsset,
+}: TacticalMapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<L.LayerGroup>(L.layerGroup());
+  const [cursorPos, setCursorPos] = useState<L.LatLng | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -49,6 +66,10 @@ export function TacticalMap({ state, center, zoom, onMapClick }: TacticalMapProp
       onMapClick?.(e.latlng.lat, e.latlng.lng);
     });
 
+    map.on("mousemove", (e: L.LeafletMouseEvent) => {
+      setCursorPos(e.latlng);
+    });
+
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
@@ -56,6 +77,24 @@ export function TacticalMap({ state, center, zoom, onMapClick }: TacticalMapProp
   useEffect(() => {
     const layers = layersRef.current;
     layers.clearLayers();
+
+    // Draw HVAs from scenario
+    scenario?.hv_assets.forEach((hva) => {
+      L.circleMarker([hva.lat, hva.lon], {
+        radius: 12,
+        color: "#fbbf24",
+        fillColor: "#fbbf24",
+        fillOpacity: 0.6,
+        weight: 2,
+      })
+        .bindTooltip(`<div class="font-mono-tactical text-xs">
+          <strong style="color: #fbbf24">${hva.type.replace(/_/g, " ").toUpperCase()}</strong><br/>
+          Value: $${(hva.value_usd / 1e6).toFixed(0)}M<br/>
+          Loss Tolerance: ${(hva.loss_tolerance * 100).toFixed(0)}%
+        </div>`, { permanent: false })
+        .addTo(layers);
+    });
+
     if (!state) return;
 
     // Draw assets with range rings
@@ -146,7 +185,44 @@ export function TacticalMap({ state, center, zoom, onMapClick }: TacticalMapProp
           { color, weight: 2, opacity: 0.7, dashArray: "4 4" }
         ).addTo(layers);
       });
-  }, [state]);
+  }, [state, scenario, placementAssetType, cursorPos]);
+
+  // Draw placement preview
+  useEffect(() => {
+    const layers = layersRef.current;
+    // Remove existing preview layer
+    layers.eachLayer((l) => {
+      const layer = l as L.Circle & { options?: { className?: string } };
+      if (layer.options?.className === "placement-preview") {
+        layers.removeLayer(l);
+      }
+    });
+
+    if (!placementAssetType || !placementGroupId || !cursorPos) return;
+
+    // Get asset definition for preview
+    const def = registry.getAsset(placementAssetType);
+    if (!def) return;
+
+    // Preview range ring
+    L.circle([cursorPos.lat, cursorPos.lng], {
+      radius: def.range_km * 1000,
+      color: "#22c55e",
+      weight: 1,
+      opacity: 0.5,
+      fillOpacity: 0.1,
+      dashArray: "6 4",
+    } as L.CircleOptions).addTo(layers);
+
+    // Preview marker
+    L.circleMarker([cursorPos.lat, cursorPos.lng], {
+      radius: 8,
+      color: "#22c55e",
+      fillColor: "#22c55e",
+      fillOpacity: 0.5,
+      weight: 2,
+    } as L.CircleMarkerOptions).addTo(layers);
+  }, [placementAssetType, placementGroupId, cursorPos]);
 
   return (
     <div ref={containerRef} className="w-full h-full rounded-lg overflow-hidden" />

@@ -1,6 +1,6 @@
 import type {
   Scenario, SimulationState, ThreatInstance, AssetInstance,
-  SimulationEvent, Engagement, Threat,
+  SimulationEvent, Engagement, Threat, DeployedAsset, GroupAllocation,
 } from "./types";
 import { registry } from "./registry";
 import { moveToward, haversineDistance, hasLineOfSight } from "./physics";
@@ -12,7 +12,7 @@ const uid = () => `e${++idCounter}`;
 
 export function createInitialState(
   scenario: Scenario,
-  assetPlacements: Array<{ type: string; lat: number; lon: number }>
+  assetPlacements: Array<DeployedAsset>
 ): SimulationState {
   idCounter = 0;
   const assets: AssetInstance[] = assetPlacements.map((p) => {
@@ -30,8 +30,12 @@ export function createInitialState(
       ammoExpended: 0,
       status: "active",
       kills: 0,
+      group_id: p.group_id,
     };
   });
+
+  // Initialize group allocations tracking
+  const groupAllocations = initGroupAllocations(assetPlacements);
 
   return {
     time: 0,
@@ -49,7 +53,37 @@ export function createInitialState(
       damaged: false,
       damageValue: 0,
     })),
+    groupAllocations,
   };
+}
+
+/** Initialize group allocation tracking from deployed assets */
+function initGroupAllocations(assetPlacements: Array<DeployedAsset>): GroupAllocation[] {
+  const allocationMap = new Map<string, GroupAllocation>();
+
+  for (const placement of assetPlacements) {
+    const group = registry.getGroup(placement.group_id);
+    if (!group) continue;
+
+    if (!allocationMap.has(placement.group_id)) {
+      const deployed = new Map<string, number>();
+      const remaining = new Map<string, number>();
+      for (const asset of group.assets) {
+        deployed.set(asset.type, 0);
+        remaining.set(asset.type, asset.count);
+      }
+      allocationMap.set(placement.group_id, { group_id: placement.group_id, deployed, remaining });
+    }
+
+    const alloc = allocationMap.get(placement.group_id)!;
+    const currentDeployed = alloc.deployed.get(placement.type) ?? 0;
+    const currentRemaining = alloc.remaining.get(placement.type) ?? 0;
+
+    alloc.deployed.set(placement.type, currentDeployed + 1);
+    alloc.remaining.set(placement.type, Math.max(0, currentRemaining - 1));
+  }
+
+  return Array.from(allocationMap.values());
 }
 
 /** Spawn threats for a given phase */

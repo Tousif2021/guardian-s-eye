@@ -6,10 +6,11 @@ import { EventLog } from "@/components/hud/EventLog";
 import { AssetInventory } from "@/components/hud/AssetInventory";
 import { ThreatTimeline } from "@/components/hud/ThreatTimeline";
 import { SimControls } from "@/components/hud/SimControls";
+import { GroupDeployment } from "@/components/hud/GroupDeployment";
 import { registry } from "@/core/registry";
 import { createInitialState, stepSimulation } from "@/core/simulation";
-import { calculateCER, formatCurrency } from "@/core/costModel";
-import type { SimulationState, CERResult, Scenario } from "@/core/types";
+import { calculateCER } from "@/core/costModel";
+import type { SimulationState, CERResult, Scenario, DeployedAsset } from "@/core/types";
 import {
   Select,
   SelectContent,
@@ -17,28 +18,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Shield } from "lucide-react";
-
-// Default asset placements for Vovchansk scenario
-const DEFAULT_PLACEMENTS = [
-  { type: "gepard", lat: 50.285, lon: 36.92 },
-  { type: "gepard", lat: 50.295, lon: 36.96 },
-  { type: "nasams", lat: 50.28, lon: 36.90 },
-  { type: "patriot_battery", lat: 50.27, lon: 36.93 },
-  { type: "laser_cuas", lat: 50.29, lon: 36.945 },
-  { type: "cellular_detector", lat: 50.30, lon: 36.95 },
-  { type: "thermal_sensor", lat: 50.295, lon: 36.93 },
-];
+import { Shield, Play } from "lucide-react";
 
 const Index = () => {
   const scenarios = registry.getAllScenarios();
   const [selectedScenarioId, setSelectedScenarioId] = useState(scenarios[0]?.scenario_id ?? "");
   const scenario = registry.getScenario(selectedScenarioId) ?? scenarios[0];
 
+  // Deployment state
+  const [deployedAssets, setDeployedAssets] = useState<DeployedAsset[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [selectedAssetType, setSelectedAssetType] = useState<string | null>(null);
+
+  // Simulation state
   const [simState, setSimState] = useState<SimulationState | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [simulationStarted, setSimulationStarted] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Calculate total spent on deployed groups
+  const totalSpent = useMemo(() => {
+    const groupIds = new Set(deployedAssets.map((a) => a.group_id));
+    let total = 0;
+    for (const groupId of groupIds) {
+      const group = registry.getGroup(groupId);
+      if (group) total += group.cost_usd;
+    }
+    return total;
+  }, [deployedAssets]);
 
   const cerResult = useMemo<CERResult | null>(() => {
     if (!simState) return null;
@@ -50,13 +58,19 @@ const Index = () => {
 
   const initSim = useCallback(() => {
     if (!scenario) return;
-    const state = createInitialState(scenario, DEFAULT_PLACEMENTS);
+    const state = createInitialState(scenario, deployedAssets);
     setSimState(state);
     setIsRunning(false);
-  }, [scenario]);
+    setSimulationStarted(false);
+  }, [scenario, deployedAssets]);
 
-  // Init on mount and scenario change
-  useEffect(() => { initSim(); }, [initSim]);
+  // Init on scenario change (but not on deployment change)
+  useEffect(() => {
+    if (!simulationStarted) {
+      const state = createInitialState(scenario, deployedAssets);
+      setSimState(state);
+    }
+  }, [scenario, deployedAssets, simulationStarted]);
 
   // Simulation loop
   useEffect(() => {
@@ -83,15 +97,77 @@ const Index = () => {
 
   const handleStep = useCallback(() => {
     if (!simState || !scenario) return;
+    setSimulationStarted(true);
     setSimState(stepSimulation(simState, scenario));
   }, [simState, scenario]);
 
-  const handleToggle = () => setIsRunning((r) => !r);
-  const handleReset = () => { setIsRunning(false); initSim(); };
+  const handleToggle = () => {
+    if (!simulationStarted && deployedAssets.length === 0) {
+      // Don't start without assets
+      return;
+    }
+    if (!simulationStarted) {
+      setSimulationStarted(true);
+    }
+    setIsRunning((r) => !r);
+  };
+
+  const handleReset = () => {
+    setIsRunning(false);
+    setSimulationStarted(false);
+    initSim();
+  };
+
+  const handleDeployAsset = useCallback((lat: number, lon: number) => {
+    if (!selectedGroup || !selectedAssetType) return;
+    if (simulationStarted) return; // Can't deploy after simulation starts
+
+    // Check if asset is available in the selected group
+    const group = registry.getGroup(selectedGroup);
+    if (!group) return;
+
+    const groupAsset = group.assets.find((a) => a.type === selectedAssetType);
+    if (!groupAsset) return;
+
+    // Check if we haven't exceeded the count
+    const deployedInGroup = deployedAssets.filter(
+      (a) => a.group_id === selectedGroup && a.type === selectedAssetType
+    ).length;
+    if (deployedInGroup >= groupAsset.count) return;
+
+    // Check max_deployable constraint
+    if (groupAsset.max_deployable !== undefined) {
+      const deployedTotal = deployedAssets.filter(
+        (a) => a.group_id === selectedGroup && a.type === selectedAssetType
+      ).length;
+      if (deployedTotal >= groupAsset.max_deployable) return;
+    }
+
+    const newAsset: DeployedAsset = {
+      type: selectedAssetType,
+      lat,
+      lon,
+      group_id: selectedGroup,
+      instance_id: `${selectedGroup}-${selectedAssetType}-${Date.now()}`,
+    };
+
+    setDeployedAssets((prev) => [...prev, newAsset]);
+  }, [selectedGroup, selectedAssetType, deployedAssets, simulationStarted]);
+
+  const handleRemoveAsset = useCallback((instanceId: string) => {
+    if (simulationStarted) return;
+    setDeployedAssets((prev) => prev.filter((a) => a.instance_id !== instanceId));
+  }, [simulationStarted]);
+
+  const handleMapClick = useCallback((lat: number, lon: number) => {
+    handleDeployAsset(lat, lon);
+  }, [handleDeployAsset]);
 
   const center: [number, number] = scenario
     ? [scenario.sides.blue.base_location.lat, scenario.sides.blue.base_location.lon]
     : [50.29, 36.94];
+
+  const canStartSimulation = deployedAssets.length > 0 || simulationStarted;
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background flex flex-col">
@@ -105,7 +181,13 @@ const Index = () => {
           Cost-Optimized Defense Allocator
         </span>
         <div className="flex-1" />
-        <Select value={selectedScenarioId} onValueChange={setSelectedScenarioId}>
+        <Select value={selectedScenarioId} onValueChange={(val) => {
+          setSelectedScenarioId(val);
+          setDeployedAssets([]);
+          setSelectedGroup(null);
+          setSelectedAssetType(null);
+          setSimulationStarted(false);
+        }}>
           <SelectTrigger className="w-56 h-8 text-xs font-mono-tactical bg-muted/50 border-border">
             <SelectValue />
           </SelectTrigger>
@@ -121,18 +203,71 @@ const Index = () => {
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Left sidebar */}
+        <aside className="w-80 flex flex-col gap-2 p-2 overflow-y-auto border-r border-border bg-background/50">
+          {!simulationStarted ? (
+            <GroupDeployment
+              scenario={scenario!}
+              deployedAssets={deployedAssets}
+              onDeployAsset={handleDeployAsset}
+              onRemoveAsset={handleRemoveAsset}
+              selectedGroup={selectedGroup}
+              onSelectGroup={setSelectedGroup}
+              selectedAssetType={selectedAssetType}
+              onSelectAssetType={setSelectedAssetType}
+              totalSpent={totalSpent}
+            />
+          ) : (
+            <>
+              <CerGauge cer={cerResult} />
+              <WasteTicker cer={cerResult} />
+            </>
+          )}
+          {simulationStarted && (
+            <>
+              <AssetInventory assets={simState?.assets ?? []} />
+              <ThreatTimeline
+                scenario={scenario!}
+                currentTime={simState?.time ?? 0}
+                state={simState}
+              />
+            </>
+          )}
+          <div className="flex-1 min-h-[200px]">
+            <EventLog events={simState?.events ?? []} />
+          </div>
+        </aside>
+
         {/* Map area */}
         <div className="flex-1 relative">
-          <TacticalMap state={simState} center={center} zoom={11} />
+          <TacticalMap
+            state={simState}
+            center={center}
+            zoom={11}
+            scenario={scenario}
+            deployedAssets={deployedAssets}
+            placementAssetType={selectedAssetType}
+            placementGroupId={selectedGroup}
+            onMapClick={handleMapClick}
+            onRemoveAsset={handleRemoveAsset}
+          />
           {/* Scanline overlay */}
           <div className="absolute inset-0 pointer-events-none scanline opacity-30" />
-        </div>
 
-        {/* Right sidebar */}
-        <aside className="w-80 flex flex-col gap-2 p-2 overflow-y-auto border-l border-border bg-background/50">
-          <CerGauge cer={cerResult} />
-          <WasteTicker cer={cerResult} />
-          <div className="flex-shrink-0">
+          {/* Start prompt overlay */}
+          {!simulationStarted && deployedAssets.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="glass-panel p-6 text-center">
+                <Play className="h-8 w-8 text-cyan mx-auto mb-2" />
+                <div className="text-sm font-mono-tactical text-foreground">
+                  Select a group and deploy assets on the map
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Simulation Controls - centered at bottom of map */}
+          <div className="absolute bottom-4 left-0 right-0 pointer-events-auto z-[1000]">
             <SimControls
               isRunning={isRunning}
               speed={speed}
@@ -145,16 +280,7 @@ const Index = () => {
               onOptimize={() => {}}
             />
           </div>
-          <AssetInventory assets={simState?.assets ?? []} />
-          <ThreatTimeline
-            scenario={scenario!}
-            currentTime={simState?.time ?? 0}
-            state={simState}
-          />
-          <div className="flex-1 min-h-[200px]">
-            <EventLog events={simState?.events ?? []} />
-          </div>
-        </aside>
+        </div>
       </div>
     </div>
   );

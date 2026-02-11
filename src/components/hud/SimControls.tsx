@@ -20,78 +20,88 @@ export function SimControls({
   const speeds = [1, 5, 10, 50];
 
   return (
-    <div className="glass-panel p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="text-xs text-muted-foreground font-mono-tactical uppercase tracking-wider flex-1">
-          Simulation
-        </div>
-        <div className="font-mono-tactical text-sm text-cyan font-bold">
-          T+{time}s
-        </div>
-        <div className={`text-xs font-mono-tactical px-2 py-0.5 rounded ${
-          status === "running" ? "bg-primary/20 text-cyan"
-          : status === "victory" ? "bg-green-500/20 text-success"
-          : status === "defeat" ? "bg-red-500/20 text-danger"
-          : "bg-muted text-muted-foreground"
-        }`}>
-          {status.toUpperCase()}
-        </div>
-      </div>
+    <div className="flex items-center justify-center">
+      <div className="glass-panel-strong p-3 rounded-lg">
+        <div className="flex items-center gap-3">
+          {/* Play/Pause */}
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 border-border bg-background/50 backdrop-blur-sm"
+            onClick={onToggle}
+            disabled={status !== "running"}
+          >
+            {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+          </Button>
 
-      <div className="flex items-center gap-1.5">
-        <Button
-          size="icon"
-          variant="outline"
-          className="h-8 w-8 border-border"
-          onClick={onToggle}
-          disabled={status !== "running"}
-        >
-          {isRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-        </Button>
-        <Button
-          size="icon"
-          variant="outline"
-          className="h-8 w-8 border-border"
-          onClick={onStep}
-          disabled={isRunning || status !== "running"}
-        >
-          <SkipForward className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          size="icon"
-          variant="outline"
-          className="h-8 w-8 border-border"
-          onClick={onReset}
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-        </Button>
+          {/* Step */}
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 border-border bg-background/50 backdrop-blur-sm"
+            onClick={onStep}
+            disabled={isRunning || status !== "running"}
+          >
+            <SkipForward className="h-4 w-4" />
+          </Button>
 
-        <div className="flex-1" />
+          {/* Reset */}
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 border-border bg-background/50 backdrop-blur-sm"
+            onClick={onReset}
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
 
-        {/* Speed selector */}
-        <div className="flex items-center gap-1">
-          {speeds.map((s) => (
-            <button
-              key={s}
-              onClick={() => onSpeedChange(s)}
-              className={`px-2 py-1 text-xs font-mono-tactical rounded transition-colors ${
-                speed === s
-                  ? "bg-primary/20 text-cyan border border-primary/40"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {s}×
-            </button>
-          ))}
+          {/* Separator */}
+          <div className="w-px h-6 bg-border" />
+
+          {/* Time display */}
+          <div className="font-mono-tactical text-sm text-cyan font-bold min-w-[60px]">
+            T+{time}s
+          </div>
+
+          {/* Status badge */}
+          <div className={`text-xs font-mono-tactical px-2 py-1 rounded ${
+            status === "running" ? "bg-primary/20 text-cyan"
+            : status === "victory" ? "bg-green-500/20 text-success"
+            : status === "defeat" ? "bg-red-500/20 text-danger"
+            : "bg-muted text-muted-foreground"
+          }`}>
+            {status.toUpperCase()}
+          </div>
+
+          {/* Separator */}
+          <div className="w-px h-6 bg-border" />
+
+          {/* Speed selector */}
+          <div className="flex items-center gap-1">
+            {speeds.map((s) => (
+              <button
+                key={s}
+                onClick={() => onSpeedChange(s)}
+                className={`px-2 py-1 text-xs font-mono-tactical rounded transition-colors ${
+                  speed === s
+                    ? "bg-primary/20 text-cyan border border-primary/40"
+                    : "text-muted-foreground hover:text-foreground bg-background/30"
+                }`}
+              >
+                {s}×
+              </button>
+            ))}
+          </div>
+
+          {/* Optimize button */}
+          <Button
+            size="sm"
+            className="bg-primary/20 text-cyan border border-primary/40 hover:bg-primary/30 font-mono-tactical text-xs"
+            onClick={onOptimize}
+          >
+            <Zap className="h-3 w-3 mr-1" /> OPTIMIZE
+          </Button>
         </div>
-
-        <Button
-          size="sm"
-          className="ml-2 bg-primary/20 text-cyan border border-primary/40 hover:bg-primary/30 font-mono-tactical text-xs"
-          onClick={onOptimize}
-        >
-          <Zap className="h-3 w-3 mr-1" /> OPTIMIZE
-        </Button>
       </div>
     </div>
   );

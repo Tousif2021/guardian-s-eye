@@ -111,6 +111,33 @@ export const HVASchema = z.object({
   loss_tolerance: z.number().min(0).max(1),
 });
 
+// ─── Asset Group Schema ───
+export const GroupAssetSchema = z.object({
+  type: z.string(),
+  count: z.number().int().min(0),
+  max_deployable: z.number().int().min(0).optional(), // Max that can be deployed at once
+});
+
+export const AssetGroupSchema = z.object({
+  group_id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  cost_usd: z.number().nonnegative(), // Total cost to deploy this group
+  assets: z.array(GroupAssetSchema),
+  icon: z.string().optional(),
+  color: z.string().optional(),
+});
+
+// ─── Deployed Asset Schema ───
+export const DeployedAssetSchema = z.object({
+  type: z.string(),
+  lat: z.number(),
+  lon: z.number(),
+  group_id: z.string(),
+  instance_id: z.string().optional(), // Track specific instance from group
+});
+
+// ─── Scenario Schema ───
 export const ScenarioSchema = z.object({
   scenario_id: z.string(),
   name: z.string(),
@@ -121,6 +148,7 @@ export const ScenarioSchema = z.object({
       mission: z.string(),
       budget_usd: z.number().positive(),
       base_location: z.object({ lat: z.number(), lon: z.number() }),
+      available_groups: z.array(z.string()).optional(), // Groups available for this scenario
     }),
     red: z.object({
       command_chain: z.string(),
@@ -134,6 +162,9 @@ export const ScenarioSchema = z.object({
 // ─── Inferred TypeScript Types ───
 export type Threat = z.infer<typeof ThreatSchema>;
 export type Asset = z.infer<typeof AssetSchema>;
+export type GroupAsset = z.infer<typeof GroupAssetSchema>;
+export type AssetGroup = z.infer<typeof AssetGroupSchema>;
+export type DeployedAsset = z.infer<typeof DeployedAssetSchema>;
 export type CommandChain = z.infer<typeof CommandChainSchema>;
 export type CommandNode = z.infer<typeof CommandNodeSchema>;
 export type Mission = z.infer<typeof MissionSchema>;
@@ -172,6 +203,7 @@ export interface AssetInstance {
   ammoExpended: number;
   status: "active" | "destroyed" | "reloading" | "jammed";
   kills: number;
+  group_id?: string; // Track which group this asset belongs to
 }
 
 export interface Engagement {
@@ -204,6 +236,14 @@ export interface SimulationState {
   totalDefenseCost: number;
   totalThreatValue: number;
   hvaStatus: Array<{ type: string; damaged: boolean; damageValue: number }>;
+  groupAllocations: GroupAllocation[]; // Track deployed assets by group
+}
+
+// Track how many assets from each group have been deployed
+export interface GroupAllocation {
+  group_id: string;
+  deployed: Map<string, number>; // asset_type -> count deployed
+  remaining: Map<string, number>; // asset_type -> count remaining
 }
 
 export interface CERResult {

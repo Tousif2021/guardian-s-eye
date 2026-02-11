@@ -11,6 +11,16 @@ export const scenarios: Scenario[] = [
         mission: "point_defense",
         budget_usd: 25000000,
         base_location: { lat: 50.29, lon: 36.94 },
+        available_groups: [
+          "infantry_platoon_aa",
+          "spaag_section",
+          "medium_sam_battery",
+          "heavy_sam_battery",
+          "cuas_detachment",
+          "combined_iads_platoon",
+          "sensor_network",
+          "rapid_reaction_team",
+        ],
       },
       red: {
         command_chain: "russian_btg",
@@ -65,6 +75,16 @@ export const scenarios: Scenario[] = [
         mission: "counter_swarm",
         budget_usd: 10000000,
         base_location: { lat: 48.85, lon: 2.35 },
+        available_groups: [
+          "infantry_platoon_aa",
+          "spaag_section",
+          "medium_sam_battery",
+          "heavy_sam_battery",
+          "cuas_detachment",
+          "combined_iads_platoon",
+          "sensor_network",
+          "rapid_reaction_team",
+        ],
       },
       red: {
         command_chain: "russian_btg",
