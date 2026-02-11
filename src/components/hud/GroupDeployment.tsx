@@ -54,6 +54,8 @@ interface GroupDeploymentProps {
   onRemoveAsset: (instanceId: string) => void;
   selectedAssetType: string | null;
   onSelectAssetType: (assetType: string | null) => void;
+  selectedGroup: string | null;
+  onSelectGroup: (groupId: string | null) => void;
   totalSpent: number;
 }
 
@@ -64,6 +66,8 @@ export function GroupDeployment({
   onRemoveAsset,
   selectedAssetType,
   onSelectAssetType,
+  selectedGroup,
+  onSelectGroup,
   totalSpent,
 }: GroupDeploymentProps) {
   const allAssets = registry.getAllAssets();
@@ -113,14 +117,22 @@ export function GroupDeployment({
     setForceGroups((prev) => updateInTree(prev, groupId, updates));
   };
 
-  // Add asset to group
+  // Add asset to group — also notify parent
   const addAssetToGroup = (groupId: string, assetType: string) => {
+    const newAsset: DeployedAsset = {
+      type: assetType,
+      lat: 0,
+      lon: 0,
+      group_id: groupId,
+      instance_id: `${groupId}-${assetType}-${Date.now()}`,
+    };
+
     const updateFn = (groups: ForceGroup[]): ForceGroup[] => {
       return groups.map((group) => {
         if (group.id === groupId) {
           return {
             ...group,
-            assets: [...group.assets, { type: assetType, lat: 0, lon: 0, group_id: groupId }],
+            assets: [...group.assets, newAsset],
           };
         }
         if (group.subGroups.length > 0) {
@@ -130,6 +142,7 @@ export function GroupDeployment({
       });
     };
     setForceGroups(updateFn);
+    onSelectGroup(groupId);
   };
 
   // Toggle group collapse
@@ -190,6 +203,8 @@ export function GroupDeployment({
             onAddAssetToGroup={addAssetToGroup}
             selectedAssetType={selectedAssetType}
             onSelectAssetType={onSelectAssetType}
+            selectedGroup={selectedGroup}
+            onSelectGroup={onSelectGroup}
             allAssets={allAssets}
           />
         ))}
@@ -226,10 +241,17 @@ export function GroupDeployment({
       </div>
 
       {/* Selected asset indicator */}
-      {selectedAssetType && (
+      {selectedAssetType && !selectedGroup && (
         <div className="border-t border-border pt-2">
           <div className="text-[10px] text-cyan font-mono-tactical text-center">
-            Click a group shape to add {selectedAssetType.replace(/_/g, " ").toUpperCase()}
+            Click a group to select it, then click the map to place {selectedAssetType.replace(/_/g, " ").toUpperCase()}
+          </div>
+        </div>
+      )}
+      {selectedAssetType && selectedGroup && (
+        <div className="border-t border-border pt-2">
+          <div className="text-[10px] text-accent font-mono-tactical text-center animate-pulse">
+            Click the map to place {selectedAssetType.replace(/_/g, " ").toUpperCase()}
           </div>
         </div>
       )}
@@ -249,6 +271,8 @@ interface GroupItemProps {
   onAddAssetToGroup: (groupId: string, assetType: string) => void;
   selectedAssetType: string | null;
   onSelectAssetType: (type: string | null) => void;
+  selectedGroup: string | null;
+  onSelectGroup: (groupId: string | null) => void;
   allAssets: any[];
 }
 
@@ -263,6 +287,8 @@ function GroupItem({
   onAddAssetToGroup,
   selectedAssetType,
   onSelectAssetType,
+  selectedGroup,
+  onSelectGroup,
   allAssets,
 }: GroupItemProps) {
   const isExpanded = expandedGroups.has(group.id);
@@ -273,8 +299,13 @@ function GroupItem({
     <div className="relative">
       {/* Group header */}
       <div
-        className="flex items-center gap-2 p-2 rounded border bg-background/50 hover:bg-background/80 transition-all cursor-pointer"
+        className={`flex items-center gap-2 p-2 rounded border transition-all cursor-pointer ${
+          selectedGroup === group.id
+            ? "bg-primary/20 border-primary/40"
+            : "bg-background/50 hover:bg-background/80"
+        }`}
         style={{ marginLeft: `${paddingLeft}px` }}
+        onClick={() => onSelectGroup(selectedGroup === group.id ? null : group.id)}
       >
         {/* Collapse/Expand handle */}
         {hasChildren && (
@@ -344,6 +375,8 @@ function GroupItem({
               onAddAssetToGroup={onAddAssetToGroup}
               selectedAssetType={selectedAssetType}
               onSelectAssetType={onSelectAssetType}
+              selectedGroup={selectedGroup}
+              onSelectGroup={onSelectGroup}
               allAssets={allAssets}
             />
           ))}
