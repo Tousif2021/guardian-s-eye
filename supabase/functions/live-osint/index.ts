@@ -19,7 +19,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const searchQuery = query || `drone strike attack ${region || 'Ukraine'} 2026`;
+    // Always append tactical/military context to avoid commercial results
+    const baseRegion = region || 'Ukraine';
+    const searchQuery = query
+      ? `${query} military attack strike conflict ${baseRegion}`
+      : `drone strike attack ${baseRegion} 2026`;
 
     // Use Firecrawl search to find recent OSINT reports
     const response = await fetch('https://api.firecrawl.dev/v1/search', {
