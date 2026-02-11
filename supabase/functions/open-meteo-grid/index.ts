@@ -1,0 +1,77 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { latMin, latMax, lonMin, lonMax, step, forecastDays } = await req.json();
+
+    const lat0 = latMin ?? 47.0;
+    const lat1 = latMax ?? 52.0;
+    const lon0 = lonMin ?? 31.0;
+    const lon1 = lonMax ?? 40.0;
+    const s = step ?? 0.25;
+    const days = forecastDays ?? 3;
+
+    // Build lat/lon arrays
+    const lats: number[] = [];
+    const lons: number[] = [];
+    for (let la = lat0; la <= lat1; la += s) lats.push(Math.round(la * 100) / 100);
+    for (let lo = lon0; lo <= lon1; lo += s) lons.push(Math.round(lo * 100) / 100);
+
+    const latStr = lats.join(",");
+    const lonStr = lons.join(",");
+
+    const url =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${latStr}&longitude=${lonStr}` +
+      `&hourly=wind_speed_10m,wind_gusts_10m,wind_speed_120m,precipitation,snowfall,temperature_2m,cloud_cover,visibility` +
+      `&forecast_days=${days}&timeformat=unixtime`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Open-Meteo error ${res.status}: ${body}`);
+    }
+
+    const data = await res.json();
+
+    // Open-Meteo returns an array when multiple coords, single object when one coord
+    const items = Array.isArray(data) ? data : [data];
+
+    // Build compact grid cells
+    const cells = items.map((item: any) => ({
+      lat: item.latitude,
+      lon: item.longitude,
+      hourly: {
+        time: item.hourly.time,
+        wind_10m: item.hourly.wind_speed_10m,
+        wind_120m: item.hourly.wind_speed_120m,
+        gusts: item.hourly.wind_gusts_10m,
+        precip: item.hourly.precipitation,
+        snow: item.hourly.snowfall,
+        temp: item.hourly.temperature_2m,
+        cloud: item.hourly.cloud_cover,
+        vis: item.hourly.visibility,
+      },
+    }));
+
+    return new Response(JSON.stringify({ cells, lats, lons }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("open-meteo-grid error:", err);
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
