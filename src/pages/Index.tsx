@@ -41,6 +41,8 @@ const Index = () => {
   const [speed, setSpeed] = useState(1);
   const [simulationStarted, setSimulationStarted] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const simStateRef = useRef<SimulationState | null>(null);
+  simStateRef.current = simState;
 
   // Calculate total spent on deployed groups
   const totalSpent = useMemo(() => {
@@ -111,7 +113,7 @@ const Index = () => {
   // Simulation loop — now passes envMods
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    if (!isRunning || !simState || !scenario) return;
+    if (!isRunning || !scenario) return;
 
     intervalRef.current = setInterval(() => {
       setSimState((prev) => {
@@ -139,10 +141,13 @@ const Index = () => {
 
   const handleToggle = () => {
     if (!simulationStarted && deployedAssets.length === 0) {
-      // Don't start without assets
       return;
     }
     if (!simulationStarted) {
+      // Initialize simulation state with current deployments before starting
+      const state = createInitialState(scenario, deployedAssets);
+      setSimState(state);
+      simStateRef.current = state;
       setSimulationStarted(true);
     }
     setIsRunning((r) => !r);
