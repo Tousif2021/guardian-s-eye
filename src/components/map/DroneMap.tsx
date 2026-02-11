@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Rectangle, Popup, useMap } from "react-leaflet";
-import type { GridCell } from "@/lib/api/openMeteo";
+import { useEffect, useRef, useCallback } from "react";
+import { MapContainer, TileLayer, Rectangle, Popup, useMap, useMapEvents } from "react-leaflet";
+import type { GridCell, Bounds } from "@/lib/api/openMeteo";
 import { classifyZone, classifyAllDrones, DRONE_LABELS, type DroneType, type ZoneLevel } from "@/core/droneZones";
 import "leaflet/dist/leaflet.css";
 
@@ -16,10 +16,56 @@ interface DroneMapProps {
   hourIndex: number;
   useHighAlt: boolean;
   step: number;
+  onBoundsChange: (bounds: Bounds) => void;
 }
 
-function GridOverlay({ cells, droneType, hourIndex, useHighAlt, step }: DroneMapProps) {
-  const map = useMap();
+function BoundsWatcher({ onBoundsChange }: { onBoundsChange: (b: Bounds) => void }) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  onBoundsChangeRef.current = onBoundsChange;
+
+  const map = useMapEvents({
+    moveend: () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        const b = map.getBounds();
+        onBoundsChangeRef.current({
+          latMin: Math.floor(b.getSouth() * 4) / 4,
+          latMax: Math.ceil(b.getNorth() * 4) / 4,
+          lonMin: Math.floor(b.getWest() * 4) / 4,
+          lonMax: Math.ceil(b.getEast() * 4) / 4,
+        });
+      }, 600);
+    },
+    zoomend: () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        const b = map.getBounds();
+        onBoundsChangeRef.current({
+          latMin: Math.floor(b.getSouth() * 4) / 4,
+          latMax: Math.ceil(b.getNorth() * 4) / 4,
+          lonMin: Math.floor(b.getWest() * 4) / 4,
+          lonMax: Math.ceil(b.getEast() * 4) / 4,
+        });
+      }, 600);
+    },
+  });
+
+  // Fire once on mount
+  useEffect(() => {
+    const b = map.getBounds();
+    onBoundsChangeRef.current({
+      latMin: Math.floor(b.getSouth() * 4) / 4,
+      latMax: Math.ceil(b.getNorth() * 4) / 4,
+      lonMin: Math.floor(b.getWest() * 4) / 4,
+      lonMax: Math.ceil(b.getEast() * 4) / 4,
+    });
+  }, [map]);
+
+  return null;
+}
+
+function GridOverlay({ cells, droneType, hourIndex, useHighAlt, step }: Omit<DroneMapProps, "onBoundsChange">) {
   const half = step / 2;
 
   return (
@@ -89,13 +135,13 @@ function GridOverlay({ cells, droneType, hourIndex, useHighAlt, step }: DroneMap
   );
 }
 
-export default function DroneMap(props: DroneMapProps) {
+export default function DroneMap({ onBoundsChange, ...props }: DroneMapProps) {
   const center: [number, number] = [49.0, 36.0];
 
   return (
     <MapContainer
       center={center}
-      zoom={6}
+      zoom={7}
       className="h-full w-full"
       zoomControl={true}
     >
@@ -103,6 +149,7 @@ export default function DroneMap(props: DroneMapProps) {
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
       />
+      <BoundsWatcher onBoundsChange={onBoundsChange} />
       <GridOverlay {...props} />
     </MapContainer>
   );
