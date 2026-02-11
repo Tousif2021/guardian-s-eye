@@ -242,35 +242,24 @@ const Index = () => {
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar */}
+        {/* Left sidebar — deployment / CER */}
         <aside className="w-80 flex flex-col gap-2 p-2 overflow-y-auto border-r border-border bg-background/50">
           {!simulationStarted ? (
             <GroupDeployment
               scenario={scenario!}
               deployedAssets={deployedAssets}
-              onDeployAsset={handleDeployAsset}
+              onDeployAsset={(asset) => {
+                if (asset.lat != null && asset.lon != null) {
+                  handleDeployAsset(asset.lat, asset.lon);
+                }
+              }}
               onRemoveAsset={handleRemoveAsset}
-              selectedGroup={selectedGroup}
-              onSelectGroup={setSelectedGroup}
               selectedAssetType={selectedAssetType}
               onSelectAssetType={setSelectedAssetType}
               totalSpent={totalSpent}
             />
           ) : (
-            <>
-              <CerGauge cer={cerResult} />
-              <WasteTicker cer={cerResult} />
-            </>
-          )}
-          {simulationStarted && (
-            <>
-              <AssetInventory assets={simState?.assets ?? []} />
-              <ThreatTimeline
-                scenario={scenario!}
-                currentTime={simState?.time ?? 0}
-                state={simState}
-              />
-            </>
+            <CerGauge cer={cerResult} />
           )}
           <div className="flex-1 min-h-[200px]">
             <EventLog events={simState?.events ?? []} />
@@ -290,10 +279,8 @@ const Index = () => {
             onMapClick={handleMapClick}
             onRemoveAsset={handleRemoveAsset}
           />
-          {/* Scanline overlay */}
           <div className="absolute inset-0 pointer-events-none scanline opacity-30" />
 
-          {/* Start prompt overlay */}
           {!simulationStarted && deployedAssets.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="glass-panel p-6 text-center">
@@ -305,7 +292,6 @@ const Index = () => {
             </div>
           )}
 
-          {/* Simulation Controls - centered at bottom of map */}
           <div className="absolute bottom-4 left-0 right-0 pointer-events-auto z-[1000]">
             <SimControls
               isRunning={isRunning}
@@ -320,6 +306,27 @@ const Index = () => {
             />
           </div>
         </div>
+
+        {/* Right sidebar — live feeds */}
+        <aside className="w-80 flex flex-col gap-2 p-2 overflow-y-auto border-l border-border bg-background/50">
+          <EnvironmentPanel
+            weather={weather}
+            loading={weatherLoading}
+            onRefresh={handleFetchWeather}
+          />
+          <OsintPanel
+            reports={osintReports}
+            loading={osintLoading}
+            onSearch={handleOsintSearch}
+          />
+          <WasteTicker cer={cerResult} />
+          <AssetInventory assets={simState?.assets ?? []} />
+          <ThreatTimeline
+            scenario={scenario!}
+            currentTime={simState?.time ?? 0}
+            state={simState}
+          />
+        </aside>
       </div>
     </div>
   );
