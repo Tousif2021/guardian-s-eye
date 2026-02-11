@@ -4,10 +4,11 @@ import type { GridCell, Bounds } from "@/lib/api/openMeteo";
 import { classifyZone, classifyAllDrones, DRONE_LABELS, type DroneType, type ZoneLevel } from "@/core/droneZones";
 import "leaflet/dist/leaflet.css";
 
+// Inverted: GREEN drone zone = dangerous for people (red), RED drone zone = safe for people (green)
 const ZONE_COLORS: Record<ZoneLevel, string> = {
-  GREEN: "#22c55e",
-  YELLOW: "#eab308",
-  RED: "#ef4444",
+  GREEN: "#ef4444",   // Drones CAN fly → danger for people on ground
+  YELLOW: "#eab308",  // Caution stays yellow
+  RED: "#22c55e",     // Drones CAN'T fly → safe for people on ground
 };
 
 interface DroneMapProps {

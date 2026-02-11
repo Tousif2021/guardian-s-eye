@@ -1,8 +1,8 @@
 export default function WeatherLegend() {
   const items = [
-    { color: "#22c55e", label: "GREEN — Fly", desc: "Wind < threshold, dry" },
-    { color: "#eab308", label: "YELLOW — Caution", desc: "Moderate wind or light precip" },
-    { color: "#ef4444", label: "RED — No-Fly", desc: "Strong gusts, heavy precip/snow" },
+    { color: "#22c55e", label: "GREEN — Safe to walk", desc: "Drones grounded: strong wind/precip" },
+    { color: "#eab308", label: "YELLOW — Caution", desc: "Some drones may still operate" },
+    { color: "#ef4444", label: "RED — Danger", desc: "Clear skies, drones active" },
   ];
 
   return (
