@@ -1,4 +1,14 @@
-export type DroneType = "fpv" | "geran2" | "orlan10";
+export type DroneType =
+  | "orlan10"
+  | "zala421_16"
+  | "zala421_12"
+  | "zala_t20"
+  | "lancet3"
+  | "eleron10"
+  | "supercam_s350"
+  | "granat"
+  | "geran2";
+
 export type ZoneLevel = "GREEN" | "YELLOW" | "RED";
 
 export interface ZoneClassification {
@@ -17,44 +27,80 @@ interface Thresholds {
   snowYellow: number;
 }
 
+// Wind values: green = ~60% of max, yellow = ~85% of max, above yellow = RED (grounded)
 const THRESHOLDS: Record<DroneType, Thresholds> = {
-  fpv: {
-    windGreen: 8,
-    windYellow: 12,
-    gustGreen: 10,
-    gustYellow: 15,
-    precipGreen: 0.3,
-    precipYellow: 0.8,
-    snowGreen: 0.1,
-    snowYellow: 0.5,
-  },
   orlan10: {
-    windGreen: 10,
-    windYellow: 15,
-    gustGreen: 14,
-    gustYellow: 20,
-    precipGreen: 0.5,
-    precipYellow: 1.5,
-    snowGreen: 0.3,
-    snowYellow: 1.0,
+    windGreen: 6, windYellow: 10,
+    gustGreen: 8, gustYellow: 14,
+    precipGreen: 0.5, precipYellow: 1.5,
+    snowGreen: 0.3, snowYellow: 1.0,
+  },
+  zala421_16: {
+    windGreen: 9, windYellow: 15,
+    gustGreen: 12, gustYellow: 20,
+    precipGreen: 0.5, precipYellow: 1.5,
+    snowGreen: 0.3, snowYellow: 1.0,
+  },
+  zala421_12: {
+    windGreen: 6, windYellow: 10,
+    gustGreen: 8, gustYellow: 14,
+    precipGreen: 0.5, precipYellow: 1.5,
+    snowGreen: 0.3, snowYellow: 1.0,
+  },
+  zala_t20: {
+    windGreen: 9, windYellow: 15,
+    gustGreen: 12, gustYellow: 20,
+    precipGreen: 0.5, precipYellow: 1.5,
+    snowGreen: 0.3, snowYellow: 1.0,
+  },
+  lancet3: {
+    windGreen: 7, windYellow: 12,
+    gustGreen: 10, gustYellow: 16,
+    precipGreen: 0.3, precipYellow: 0.8,
+    snowGreen: 0.2, snowYellow: 0.6,
+  },
+  eleron10: {
+    windGreen: 7, windYellow: 11,
+    gustGreen: 9, gustYellow: 15,
+    precipGreen: 0.5, precipYellow: 1.5,
+    snowGreen: 0.3, snowYellow: 1.0,
+  },
+  supercam_s350: {
+    windGreen: 9, windYellow: 15,
+    gustGreen: 12, gustYellow: 20,
+    precipGreen: 0.5, precipYellow: 1.5,
+    snowGreen: 0.3, snowYellow: 1.0,
+  },
+  granat: {
+    windGreen: 6, windYellow: 10,
+    gustGreen: 8, gustYellow: 14,
+    precipGreen: 0.3, precipYellow: 0.8,
+    snowGreen: 0.2, snowYellow: 0.6,
   },
   geran2: {
-    windGreen: 14,
-    windYellow: 20,
-    gustGreen: 18,
-    gustYellow: 25,
-    precipGreen: 1.0,
-    precipYellow: 2.0,
-    snowGreen: 0.5,
-    snowYellow: 1.5,
+    windGreen: 11, windYellow: 18,
+    gustGreen: 15, gustYellow: 24,
+    precipGreen: 1.0, precipYellow: 2.0,
+    snowGreen: 0.5, snowYellow: 1.5,
   },
 };
 
 export const DRONE_LABELS: Record<DroneType, string> = {
-  fpv: "FPV",
-  geran2: "Geran-2 / Shahed",
   orlan10: "Orlan-10",
+  zala421_16: "ZALA 421-16",
+  zala421_12: "ZALA 421-12",
+  zala_t20: "ZALA T-20",
+  lancet3: "Lancet-3",
+  eleron10: "Eleron-10",
+  supercam_s350: "Supercam S350",
+  granat: "Granat-1/2",
+  geran2: "Geran-2 (Shahed)",
 };
+
+export const ALL_DRONE_TYPES: DroneType[] = [
+  "orlan10", "zala421_16", "zala421_12", "zala_t20",
+  "lancet3", "eleron10", "supercam_s350", "granat", "geran2",
+];
 
 export function classifyZone(
   wind: number,
@@ -72,19 +118,15 @@ export function classifyZone(
     if (to === "RED" || (to === "YELLOW" && level === "GREEN")) level = to;
   };
 
-  // Wind
   if (wind >= t.windYellow) promote("RED", `wind ${wind.toFixed(1)} m/s`);
   else if (wind >= t.windGreen) promote("YELLOW", `wind ${wind.toFixed(1)} m/s`);
 
-  // Gusts
   if (gusts >= t.gustYellow) promote("RED", `gusts ${gusts.toFixed(1)} m/s`);
   else if (gusts >= t.gustGreen) promote("YELLOW", `gusts near limit`);
 
-  // Precip
   if (precip >= t.precipYellow) promote("RED", `precip ${precip.toFixed(1)} mm/h`);
   else if (precip >= t.precipGreen) promote("YELLOW", `light precip`);
 
-  // Snow
   if (snow >= t.snowYellow) promote("RED", `snow ${snow.toFixed(1)} cm/h`);
   else if (snow >= t.snowGreen) promote("YELLOW", `light snow`);
 
@@ -100,9 +142,9 @@ export function classifyAllDrones(
   precip: number,
   snow: number
 ): Record<DroneType, ZoneClassification> {
-  return {
-    fpv: classifyZone(wind, gusts, precip, snow, "fpv"),
-    orlan10: classifyZone(wind, gusts, precip, snow, "orlan10"),
-    geran2: classifyZone(wind, gusts, precip, snow, "geran2"),
-  };
+  const result = {} as Record<DroneType, ZoneClassification>;
+  for (const dt of ALL_DRONE_TYPES) {
+    result[dt] = classifyZone(wind, gusts, precip, snow, dt);
+  }
+  return result;
 }

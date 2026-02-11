@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { MapContainer, TileLayer, Rectangle, Popup, useMap, useMapEvents } from "react-leaflet";
 import type { GridCell, Bounds } from "@/lib/api/openMeteo";
-import { classifyZone, classifyAllDrones, DRONE_LABELS, type DroneType, type ZoneLevel } from "@/core/droneZones";
+import { classifyZone, classifyAllDrones, DRONE_LABELS, ALL_DRONE_TYPES, type DroneType, type ZoneLevel } from "@/core/droneZones";
 import "leaflet/dist/leaflet.css";
 
 // Inverted: GREEN drone zone = dangerous for people (red), RED drone zone = safe for people (green)
@@ -15,7 +15,6 @@ interface DroneMapProps {
   cells: GridCell[];
   droneType: DroneType;
   hourIndex: number;
-  useHighAlt: boolean;
   step: number;
   onBoundsChange: (bounds: Bounds) => void;
 }
@@ -66,7 +65,7 @@ function BoundsWatcher({ onBoundsChange }: { onBoundsChange: (b: Bounds) => void
   return null;
 }
 
-function GridOverlay({ cells, droneType, hourIndex, useHighAlt, step }: Omit<DroneMapProps, "onBoundsChange">) {
+function GridOverlay({ cells, droneType, hourIndex, step }: Omit<DroneMapProps, "onBoundsChange">) {
   const half = step / 2;
 
   return (
@@ -74,7 +73,10 @@ function GridOverlay({ cells, droneType, hourIndex, useHighAlt, step }: Omit<Dro
       {cells.map((cell) => {
         const h = cell.hourly;
         const i = Math.min(hourIndex, h.time.length - 1);
-        const wind = useHighAlt ? (h.wind_120m[i] ?? h.wind_10m[i]) : h.wind_10m[i];
+        // Use minimum wind across altitudes (worst case for ground safety — drones pick calmest altitude)
+        const wind10 = h.wind_10m[i];
+        const wind120 = h.wind_120m[i] ?? wind10;
+        const wind = Math.min(wind10, wind120);
         const gusts = h.gusts[i];
         const precip = h.precip[i];
         const snow = h.snow[i];
@@ -122,7 +124,7 @@ function GridOverlay({ cells, droneType, hourIndex, useHighAlt, step }: Omit<Dro
                 <div>Temp: {(h.temp[i] ?? 0).toFixed(0)}°C</div>
                 <div>Vis: {((h.vis[i] ?? 0) / 1000).toFixed(0)} km</div>
                 <hr style={{ borderColor: "#1e3a5f", margin: "6px 0" }} />
-                {(["fpv", "orlan10", "geran2"] as DroneType[]).map((dt) => (
+                {ALL_DRONE_TYPES.map((dt) => (
                   <div key={dt} style={{ color: ZONE_COLORS[allDrones[dt].level] }}>
                     {DRONE_LABELS[dt]}: {allDrones[dt].level} ({allDrones[dt].reason})
                   </div>

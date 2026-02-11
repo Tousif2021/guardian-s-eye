@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import DroneMap from "@/components/map/DroneMap";
 import WeatherLegend from "@/components/sidebar/WeatherLegend";
-import AltitudeSlider from "@/components/sidebar/AltitudeSlider";
+
 import DroneTypeSelector from "@/components/sidebar/DroneTypeSelector";
 import ForecastTimeline from "@/components/sidebar/ForecastTimeline";
 import { fetchWeatherGrid, type GridResponse, type Bounds } from "@/lib/api/openMeteo";
@@ -14,8 +14,7 @@ const Index = () => {
   const [grid, setGrid] = useState<GridResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [droneType, setDroneType] = useState<DroneType>("fpv");
-  const [useHighAlt, setUseHighAlt] = useState(false);
+  const [droneType, setDroneType] = useState<DroneType>("orlan10");
   const [hourIndex, setHourIndex] = useState(0);
   const [actualStep, setActualStep] = useState(DEFAULT_STEP);
   const boundsRef = useRef<Bounds | null>(null);
@@ -82,7 +81,6 @@ const Index = () => {
             cells={grid?.cells ?? []}
             droneType={droneType}
             hourIndex={hourIndex}
-            useHighAlt={useHighAlt}
             step={actualStep}
             onBoundsChange={handleBoundsChange}
           />
@@ -91,7 +89,7 @@ const Index = () => {
         <aside className="w-64 flex flex-col gap-2 p-2 overflow-y-auto border-l border-border bg-background/50">
           <WeatherLegend />
           <DroneTypeSelector selected={droneType} onChange={setDroneType} />
-          <AltitudeSlider useHighAlt={useHighAlt} onChange={setUseHighAlt} />
+          
           <ForecastTimeline
             hourIndex={hourIndex}
             maxHours={maxHours}
