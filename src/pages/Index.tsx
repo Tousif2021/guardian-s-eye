@@ -6,10 +6,15 @@ import { EventLog } from "@/components/hud/EventLog";
 import { AssetInventory } from "@/components/hud/AssetInventory";
 import { ThreatTimeline } from "@/components/hud/ThreatTimeline";
 import { SimControls } from "@/components/hud/SimControls";
+import { EnvironmentPanel } from "@/components/hud/EnvironmentPanel";
+import { OsintPanel } from "@/components/hud/OsintPanel";
 import { registry } from "@/core/registry";
 import { createInitialState, stepSimulation } from "@/core/simulation";
-import { calculateCER, formatCurrency } from "@/core/costModel";
-import type { SimulationState, CERResult, Scenario } from "@/core/types";
+import { calculateCER } from "@/core/costModel";
+import { computeEnvironmentModifiers } from "@/core/detection";
+import { fetchWeather, fetchOsint } from "@/lib/api/liveData";
+import type { SimulationState, CERResult } from "@/core/types";
+import type { WeatherData, OsintReport } from "@/lib/api/liveData";
 import {
   Select,
   SelectContent,
@@ -40,6 +45,14 @@ const Index = () => {
   const [speed, setSpeed] = useState(1);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Live data state
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [osintReports, setOsintReports] = useState<OsintReport[]>([]);
+  const [osintLoading, setOsintLoading] = useState(false);
+
+  const envMods = useMemo(() => computeEnvironmentModifiers(weather), [weather]);
+
   const cerResult = useMemo<CERResult | null>(() => {
     if (!simState) return null;
     const destroyed = simState.threats.filter((t) => t.status === "destroyed");
@@ -55,10 +68,32 @@ const Index = () => {
     setIsRunning(false);
   }, [scenario]);
 
-  // Init on mount and scenario change
   useEffect(() => { initSim(); }, [initSim]);
 
-  // Simulation loop
+  // Fetch weather when scenario changes
+  const handleFetchWeather = useCallback(async () => {
+    if (!scenario) return;
+    setWeatherLoading(true);
+    const data = await fetchWeather(
+      scenario.sides.blue.base_location.lat,
+      scenario.sides.blue.base_location.lon
+    );
+    setWeather(data);
+    setWeatherLoading(false);
+  }, [scenario]);
+
+  // Auto-fetch weather on mount
+  useEffect(() => { handleFetchWeather(); }, [handleFetchWeather]);
+
+  // OSINT search
+  const handleOsintSearch = useCallback(async (query: string) => {
+    setOsintLoading(true);
+    const reports = await fetchOsint(query);
+    setOsintReports(reports);
+    setOsintLoading(false);
+  }, []);
+
+  // Simulation loop — now passes envMods
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (!isRunning || !simState || !scenario) return;
@@ -72,19 +107,19 @@ const Index = () => {
         let next = prev;
         for (let i = 0; i < speed; i++) {
           if (next.status !== "running") break;
-          next = stepSimulation(next, scenario);
+          next = stepSimulation(next, scenario, envMods);
         }
         return next;
       });
     }, 50);
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, speed, scenario]);
+  }, [isRunning, speed, scenario, envMods]);
 
   const handleStep = useCallback(() => {
     if (!simState || !scenario) return;
-    setSimState(stepSimulation(simState, scenario));
-  }, [simState, scenario]);
+    setSimState(stepSimulation(simState, scenario, envMods));
+  }, [simState, scenario, envMods]);
 
   const handleToggle = () => setIsRunning((r) => !r);
   const handleReset = () => { setIsRunning(false); initSim(); };
@@ -105,6 +140,11 @@ const Index = () => {
           Cost-Optimized Defense Allocator
         </span>
         <div className="flex-1" />
+        {weather && (
+          <span className="text-[10px] font-mono-tactical text-muted-foreground hidden md:flex items-center gap-1">
+            🌡 {weather.temperature_c.toFixed(0)}°C | 💨 {weather.wind_speed_ms.toFixed(0)}m/s | 👁 {(weather.visibility_m/1000).toFixed(0)}km
+          </span>
+        )}
         <Select value={selectedScenarioId} onValueChange={setSelectedScenarioId}>
           <SelectTrigger className="w-56 h-8 text-xs font-mono-tactical bg-muted/50 border-border">
             <SelectValue />
@@ -121,10 +161,23 @@ const Index = () => {
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Left sidebar — OSINT */}
+        <aside className="w-72 flex flex-col gap-2 p-2 overflow-y-auto border-r border-border bg-background/50 hidden lg:flex">
+          <EnvironmentPanel
+            weather={weather}
+            loading={weatherLoading}
+            onRefresh={handleFetchWeather}
+          />
+          <OsintPanel
+            reports={osintReports}
+            loading={osintLoading}
+            onSearch={handleOsintSearch}
+          />
+        </aside>
+
         {/* Map area */}
         <div className="flex-1 relative">
           <TacticalMap state={simState} center={center} zoom={11} />
-          {/* Scanline overlay */}
           <div className="absolute inset-0 pointer-events-none scanline opacity-30" />
         </div>
 
