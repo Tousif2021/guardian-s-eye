@@ -126,9 +126,13 @@ const Index = () => {
           <TacticalMap state={simState} center={center} zoom={11} />
           {/* Scanline overlay */}
           <div className="absolute inset-0 pointer-events-none scanline opacity-30" />
+        </div>
 
-          {/* Floating sim controls */}
-          <div className="absolute bottom-4 left-4 right-4 z-10 max-w-xl">
+        {/* Right sidebar */}
+        <aside className="w-80 flex flex-col gap-2 p-2 overflow-y-auto border-l border-border bg-background/50">
+          <CerGauge cer={cerResult} />
+          <WasteTicker cer={cerResult} />
+          <div className="flex-shrink-0">
             <SimControls
               isRunning={isRunning}
               speed={speed}
@@ -141,12 +145,6 @@ const Index = () => {
               onOptimize={() => {}}
             />
           </div>
-        </div>
-
-        {/* Right sidebar */}
-        <aside className="w-80 flex flex-col gap-2 p-2 overflow-y-auto border-l border-border">
-          <CerGauge cer={cerResult} />
-          <WasteTicker cer={cerResult} />
           <AssetInventory assets={simState?.assets ?? []} />
           <ThreatTimeline
             scenario={scenario!}
