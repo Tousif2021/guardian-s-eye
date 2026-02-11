@@ -21,13 +21,19 @@ serve(async (req) => {
     const s = step ?? 0.25;
     const days = forecastDays ?? 3;
 
-    // Build paired lat/lon arrays (every combination)
+    // Build paired lat/lon arrays (every combination), keep requested coords
     const latArr: number[] = [];
     const lonArr: number[] = [];
+    const reqLats: number[] = [];
+    const reqLons: number[] = [];
     for (let la = lat0; la <= lat1; la += s) {
       for (let lo = lon0; lo <= lon1; lo += s) {
-        latArr.push(Math.round(la * 100) / 100);
-        lonArr.push(Math.round(lo * 100) / 100);
+        const rla = Math.round(la * 100) / 100;
+        const rlo = Math.round(lo * 100) / 100;
+        latArr.push(rla);
+        lonArr.push(rlo);
+        reqLats.push(rla);
+        reqLons.push(rlo);
       }
     }
 
@@ -47,14 +53,12 @@ serve(async (req) => {
     }
 
     const data = await res.json();
-
-    // Open-Meteo returns an array when multiple coords, single object when one coord
     const items = Array.isArray(data) ? data : [data];
 
-    // Build compact grid cells
-    const cells = items.map((item: any) => ({
-      lat: item.latitude,
-      lon: item.longitude,
+    // Use requested (grid-aligned) coords, not Open-Meteo's snapped coords
+    const cells = items.map((item: any, idx: number) => ({
+      lat: reqLats[idx],
+      lon: reqLons[idx],
       hourly: {
         time: item.hourly.time,
         wind_10m: item.hourly.wind_speed_10m,
